@@ -119,40 +119,42 @@ class HelpYourselfApp(App):
         return self.layout
 
     def update_ui(self):
-        button_kwargs = {'size_hint_y': None, 'height': 50}
+        # Button style
+        button_kwargs = {
+            "size_hint_y": 0.6,
+            "size_hint_x": 0.25,
+        }
 
-        # Create the "View All Check Ins" button
+        # Always show "View All Check Ins" button
         view_btn = RoundedButton(text="View All Check Ins", **button_kwargs)
         view_btn.callback = self.open_view_checkins_popup
         view_btn.bind(on_release=view_btn.callback)
 
-        # Determine which button to show and set user_info
+        # Determine which button(s) to show and set user_info
         if self.logic.status == "Not Checked In":
-            self.logic.button_label = "Check In"
             main_btn = RoundedButton(text="Check In", **button_kwargs)
             main_btn.callback = self.open_check_in_popup
             main_btn.bind(on_release=main_btn.callback)
             self.current_button = main_btn
             user_info = ""
-        elif self.logic.status == "Checked In":
-            self.logic.button_label = "Take Health Check"
-            main_btn = RoundedButton(text="Take Health Check", **button_kwargs)
-            main_btn.callback = self.open_health_check_popup
-            main_btn.bind(on_release=main_btn.callback)
-            self.current_button = main_btn
+            buttons = [main_btn, view_btn]
+        elif self.logic.status in ["Checked In", "Health Check Complete"]:
+            # Show "Check Out" button
+            checkout_btn = RoundedButton(text="Check Out", **button_kwargs)
+            checkout_btn.callback = self.check_out
+            checkout_btn.bind(on_release=checkout_btn.callback)
             user_info = f"{getattr(self.logic, 'checked_in_name', '')} (Checked In)"
+            buttons = [checkout_btn, view_btn]
         else:
-            self.logic.button_label = ""
             main_btn = None
-            user_info = f"{getattr(self.logic, 'checked_in_name', '')} (Checked In)" if getattr(
-                self.logic, 'checked_in_name', '') else ""
+            user_info = ""
+            buttons = [view_btn]
 
         # Add empty space, buttons, and empty space to center them
         self.button_bar.clear_widgets()
         self.button_bar.add_widget(Widget(size_hint_x=0.25))
-        if main_btn:
-            self.button_bar.add_widget(main_btn)
-        self.button_bar.add_widget(view_btn)
+        for btn in buttons:
+            self.button_bar.add_widget(btn)
         self.button_bar.add_widget(Widget(size_hint_x=0.25))
 
         # Update status and user info labels
@@ -237,6 +239,10 @@ class HelpYourselfApp(App):
                       content=content, size_hint=(0.7, 0.4))
         close_btn.bind(on_release=popup.dismiss)
         popup.open()
+
+    def check_out(self, instance):
+        self.logic.check_out()
+        self.update_ui()
 
 
 if __name__ == "__main__":

@@ -16,10 +16,14 @@ class HelpYourselfLogic:
         )
         self.conn.commit()
     def __init__(self):
+        
         self.conn = sqlite3.connect(DB_PATH)
         self.cursor = self.conn.cursor()
         self._create_table()
-        self._load_state()
+        self.status = "Not Checked In"
+        self.button_label = "Check In"
+        self.checked_in_name = ""
+        self._save_state()
 
     def _create_table(self):
         self.cursor.execute(
@@ -58,4 +62,10 @@ class HelpYourselfLogic:
     def check_out(self):
         self.status = "Not Checked In"
         self.button_label = "Check In"
+        self.checked_in_name = ""  # <-- Add this line
         self._save_state()
+
+    def get_all_checkins(self):
+        self.cursor.execute("SELECT name, timestamp FROM checkins ORDER BY timestamp DESC")
+        rows = self.cursor.fetchall()
+        return [f"{timestamp}: {name}" for name, timestamp in rows]
