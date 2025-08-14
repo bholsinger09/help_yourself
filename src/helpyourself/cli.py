@@ -1,111 +1,67 @@
-from helpyourself.app_logic import HelpYourselfLogic
-from kivy.uix.textinput import TextInput
-from kivy.uix.popup import Popup
+import pytest
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.uix.boxlayout import BoxLayout
-from kivy.app import App
+from kivy.uix.textinput import TextInput
+from kivy.uix.popup import Popup
+from kivy.uix.widget import Widget
+
+
+# ... your HelpYourselfApp class and methods here ...
+
+
+def test_cli_app_builds():
+    app = HelpYourselfApp()
+    layout = app.build()
+    assert layout is not None
 
 
 class HelpYourselfApp(App):
-    def build(self):
-        self.logic = HelpYourselfLogic()
-        self.layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+    # ... other methods ...
 
-        # Status label
-        self.status_label = Label(
-            text=f"Status: {self.logic.status}, Button: {self.logic.button_label}")
-        self.layout.add_widget(self.status_label)
+    def update_ui(self):
+        # Button style
+        button_kwargs = {
+            "size_hint_y": 0.6,
+            "size_hint_x": 0.25,
+        }
 
-        # Current active button
-        self.current_button = None
-        self.update_ui()
+        # Always show "View All Check Ins" button
+        view_btn = RoundedButton(text="View All Check Ins", **button_kwargs)
+        view_btn.callback = self.open_view_checkins_popup
+        view_btn.bind(on_release=view_btn.callback)
 
-        return self.layout
+        # Determine which button(s) to show and set user_info
+        if self.logic.status == "Not Checked In":
+            main_btn = RoundedButton(text="Check In", **button_kwargs)
+            main_btn.callback = self.open_check_in_popup
+            main_btn.bind(on_release=main_btn.callback)
+            self.current_button = main_btn
+            user_info = ""
+            buttons = [main_btn, view_btn]
+        elif self.logic.status in ["Checked In", "Health Check Complete"]:
+            # Show "Check Out" button
+            checkout_btn = RoundedButton(text="Check Out", **button_kwargs)
+            checkout_btn.callback = self.check_out
+            checkout_btn.bind(on_release=checkout_btn.callback)
+            user_info = f"{getattr(self.logic, 'checked_in_name', '')} (Checked In)"
+            buttons = [checkout_btn, view_btn]
+        else:
+            main_btn = None
+            user_info = ""
+            buttons = [view_btn]
 
+        # Add empty space, buttons, and empty space to center them
+        self.button_bar.clear_widgets()
+        self.button_bar.add_widget(Widget(size_hint_x=0.25))
+        for btn in buttons:
+            self.button_bar.add_widget(btn)
+        self.button_bar.add_widget(Widget(size_hint_x=0.25))
 
-def update_ui(self):
-    print(f"Updating UI. Current status: {self.logic.status}")
-
-    # Remove all buttons currently in layout except the status label
-    for child in list(self.layout.children):
-        if isinstance(child, Button):
-            print(f"Removing button: {child.text}")
-            self.layout.remove_widget(child)
-            try:
-                if hasattr(child, 'callback'):
-                    child.unbind(on_release=child.callback)
-            except Exception as e:
-                print(f"Error unbinding: {e}")
-
-    self.current_button = None
-
-    # Determine which button to show
-    if self.logic.status == "Not Checked In":
-        self.logic.button_label = "Check In"
-        btn = Button(text="Check In")
-        btn.callback = self.open_check_in_popup
-        btn.bind(on_release=btn.callback)
-        self.layout.add_widget(btn)
-        self.current_button = btn
-        print("Added Check In button")
-    elif self.logic.status == "Checked In":
-        self.logic.button_label = "Take Health Check"
-        btn = Button(text="Take Health Check")
-
-        def health_check_callback(instance):
-            self.open_health_check_popup(instance)
-
-        btn.callback = health_check_callback
-        btn.bind(on_release=btn.callback)
-        self.layout.add_widget(btn)
-        self.current_button = btn
-        print("Added Take Health Check button")
-    elif self.logic.status == "Health Check Complete":
-        self.logic.button_label = ""
-        print("No button after health check")
-
-    # Update status label
-    self.status_label.text = f"Status: {self.logic.status}, Button: {self.logic.button_label}"
-
-    def open_check_in_popup(self, instance):
-        content = BoxLayout(orientation='vertical', spacing=10)
-        name_input = TextInput(hint_text="Enter your name")
-        submit_btn = Button(text="Submit")
-
-        def submit_action(_):
-            name = name_input.text.strip()
-            if name:
-                self.logic.check_in()
-                popup.dismiss()
-                self.update_ui()  # replaces the button completely
-
-        submit_btn.bind(on_release=submit_action)
-        content.add_widget(name_input)
-        content.add_widget(submit_btn)
-
-        popup = Popup(title="Check In", content=content, size_hint=(0.7, 0.4))
-        popup.open()
-
-    def open_health_check_popup(self, instance):
-        content = BoxLayout(orientation='vertical', spacing=10)
-        question_input = TextInput(hint_text="How are you doing today?")
-        submit_btn = Button(text="Submit")
-
-        def submit_action(_):
-            answer = question_input.text.strip()
-            self.logic.take_health_check()
-            popup.dismiss()
-            self.update_ui()  # removes the button completely after health check
-
-        submit_btn.bind(on_release=submit_action)
-        content.add_widget(question_input)
-        content.add_widget(submit_btn)
-
-        popup = Popup(title="Health Check",
-                      content=content, size_hint=(0.7, 0.4))
-        popup.open()
-
-
-if __name__ == "__main__":
-    HelpYourselfApp().run()
+        # Update status and user info labels
+        if self.logic.status == "Checked In" and getattr(self.logic, "checked_in_name", ""):
+            self.status_label.text = f"Checked In: {self.logic.checked_in_name}"
+        else:
+            self.status_label.text = f"Status: {self.logic.status}"
+        self.user_info_label.text = user_info

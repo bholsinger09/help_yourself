@@ -69,3 +69,7 @@ class HelpYourselfLogic:
         self.cursor.execute("SELECT name, timestamp FROM checkins ORDER BY timestamp DESC")
         rows = self.cursor.fetchall()
         return [f"{timestamp}: {name}" for name, timestamp in rows]
+
+
+def close(self):
+    self.conn.close()
