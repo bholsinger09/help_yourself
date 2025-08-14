@@ -122,7 +122,7 @@ class HelpYourselfApp(App):
         # Button style
         button_kwargs = {
             "size_hint_y": 0.6,
-            "size_hint_x": 0.25,
+            "size_hint_x": 0.30,
         }
 
         # Always show "View All Check Ins" button
@@ -143,8 +143,13 @@ class HelpYourselfApp(App):
             checkout_btn = RoundedButton(text="Check Out", **button_kwargs)
             checkout_btn.callback = self.check_out
             checkout_btn.bind(on_release=checkout_btn.callback)
+
+            check_health_btn = RoundedButton(text="Check Health", **button_kwargs)
+            check_health_btn.callback = self.open_health_check_popup
+            check_health_btn.bind(on_release=check_health_btn.callback)
+
             user_info = f"{getattr(self.logic, 'checked_in_name', '')} (Checked In)"
-            buttons = [checkout_btn, view_btn]
+            buttons = [checkout_btn, view_btn, check_health_btn]
         else:
             main_btn = None
             user_info = ""
@@ -217,7 +222,7 @@ class HelpYourselfApp(App):
             answer = question_input.text.strip()
             self.logic.take_health_check()
             popup.dismiss()
-            self.update_ui()  # removes the button completely after health check
+            self.update_ui()
 
         submit_btn.bind(on_release=submit_action)
         content.add_widget(question_input)
