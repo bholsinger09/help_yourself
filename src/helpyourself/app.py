@@ -9,6 +9,8 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.uix.widget import Widget
 import sqlite3
 import os
+import warnings
+warnings.filterwarnings("ignore", category=ResourceWarning)
 
 DB_NAME = "checkins.db"
 
@@ -28,11 +30,6 @@ class RoundedButton(Button):
         self._rect.pos = self.pos
         self._rect.size = self.size
 
-# ...existing code...
-
-
-# ...existing imports and RoundedButton...
-
 class HelpYourselfApp(App):
     def __init__(self):
         super().__init__()  # <-- Add this line!
@@ -40,36 +37,36 @@ class HelpYourselfApp(App):
         self.button_label = "Check In"
         self.checked_in_name = ""
         self.init_db()
+    
+
+
 
     def init_db(self):
-        conn = sqlite3.connect(DB_NAME)
-        cur = conn.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS checkins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(DB_NAME) as conn:
+            cur = conn.cursor()
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS checkins (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
 
     def save_checkin(self, name):
-        conn = sqlite3.connect(DB_NAME)
-        cur = conn.cursor()
-        cur.execute(
-            'INSERT INTO checkins (name) VALUES (?)', (name,)
-        )
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(DB_NAME) as conn:
+            cur = conn.cursor()
+            cur.execute('INSERT INTO checkins (name) VALUES (?)', (name,))
+            conn.commit()
 
+    
     def get_all_checkins(self):
-        conn = sqlite3.connect(DB_NAME)
-        cur = conn.cursor()
-        cur.execute(
-            'SELECT name, timestamp FROM checkins ORDER BY timestamp DESC')
-        rows = cur.fetchall()
-        conn.close()
+        with sqlite3.connect(DB_NAME) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                'SELECT name, timestamp FROM checkins ORDER BY timestamp DESC')
+            rows = cur.fetchall()
+
         return [f"{timestamp}: {name}" for name, timestamp in rows]
 
     def check_in(self, name):
@@ -125,12 +122,11 @@ class HelpYourselfApp(App):
             "size_hint_x": 0.30,
         }
 
-        # Always show "View All Check Ins" button
+        # Always create the buttons
         view_btn = RoundedButton(text="View All Check Ins", **button_kwargs)
         view_btn.callback = self.open_view_checkins_popup
         view_btn.bind(on_release=view_btn.callback)
 
-        # Determine which button(s) to show and set user_info
         if self.logic.status == "Not Checked In":
             main_btn = RoundedButton(text="Check In", **button_kwargs)
             main_btn.callback = self.open_check_in_popup
@@ -139,7 +135,6 @@ class HelpYourselfApp(App):
             user_info = ""
             buttons = [main_btn, view_btn]
         elif self.logic.status in ["Checked In", "Health Check Complete"]:
-            # Show "Check Out" button
             checkout_btn = RoundedButton(text="Check Out", **button_kwargs)
             checkout_btn.callback = self.check_out
             checkout_btn.bind(on_release=checkout_btn.callback)
@@ -149,7 +144,7 @@ class HelpYourselfApp(App):
             check_health_btn.bind(on_release=check_health_btn.callback)
 
             user_info = f"{getattr(self.logic, 'checked_in_name', '')} (Checked In)"
-            buttons = [checkout_btn, view_btn, check_health_btn]
+            buttons = [checkout_btn, check_health_btn]  # <-- No view_btn here!
         else:
             main_btn = None
             user_info = ""
@@ -213,6 +208,21 @@ class HelpYourselfApp(App):
     
        
 
+ 
+
+    def open_view_checkins_popup(self, instance):
+        # Dummy implementation, replace with your logic
+        content = BoxLayout(orientation='vertical', spacing=10)
+        checkins_label = Label(text="All check ins:\n" + "\n".join(
+            self.logic.get_all_checkins() if hasattr(self.logic, 'get_all_checkins') else ["No data"]))
+        close_btn = Button(text="Close")
+        content.add_widget(checkins_label)
+        content.add_widget(close_btn)
+        popup = Popup(title="All Check Ins",
+                      content=content, size_hint=(0.7, 0.4))
+        close_btn.bind(on_release=popup.dismiss)
+        popup.open()
+
     def open_health_check_popup(self, instance):
         content = BoxLayout(orientation='vertical', spacing=10)
         question_input = TextInput(hint_text="How are you doing today?")
@@ -232,23 +242,8 @@ class HelpYourselfApp(App):
                       content=content, size_hint=(0.7, 0.4))
         popup.open()
 
-    def open_view_checkins_popup(self, instance):
-        # Dummy implementation, replace with your logic
-        content = BoxLayout(orientation='vertical', spacing=10)
-        checkins_label = Label(text="All check ins:\n" + "\n".join(
-            self.logic.get_all_checkins() if hasattr(self.logic, 'get_all_checkins') else ["No data"]))
-        close_btn = Button(text="Close")
-        content.add_widget(checkins_label)
-        content.add_widget(close_btn)
-        popup = Popup(title="All Check Ins",
-                      content=content, size_hint=(0.7, 0.4))
-        close_btn.bind(on_release=popup.dismiss)
-        popup.open()
-
     def check_out(self, instance):
         self.logic.check_out()
         self.update_ui()
 
 
-if __name__ == "__main__":
-    HelpYourselfApp().run()
