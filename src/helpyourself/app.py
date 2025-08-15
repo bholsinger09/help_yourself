@@ -8,6 +8,7 @@ from kivy.app import App
 from kivy.graphics import Color, RoundedRectangle
 from kivy.uix.widget import Widget
 import warnings
+import requests  # Add this import at the top
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
 class RoundedButton(Button):
@@ -143,21 +144,63 @@ class HelpYourselfApp(App):
         popup.open()
 
     def open_health_check_popup(self, instance):
+        self.health_answers = {}
+        self._ask_health_question(0)
+
+    def _ask_health_question(self, step):
+        questions = [
+            ("How are you doing today?", "how_feeling"),
+            ("Are you taking any meds? If yes, which ones?", "meds"),
+            ("Have you been diagnosed with anything? If yes, what?", "diagnosis"),
+        ]
+        if step >= len(questions):
+            self._process_health_answers()
+            return
+
+        question_text, key = questions[step]
         content = BoxLayout(orientation='vertical', spacing=10)
-        question_input = TextInput(hint_text="How are you doing today?")
-        submit_btn = Button(text="Submit")
+        input_box = TextInput(hint_text=question_text)
+        submit_btn = Button(text="Next")
 
         def submit_action(_):
-            answer = question_input.text.strip()
-            self.logic.take_health_check()
+            self.health_answers[key] = input_box.text.strip()
             popup.dismiss()
-            self.update_ui()
+            self._ask_health_question(step + 1)
 
         submit_btn.bind(on_release=submit_action)
-        content.add_widget(question_input)
+        content.add_widget(Label(text=question_text))
+        content.add_widget(input_box)
         content.add_widget(submit_btn)
 
         popup = Popup(title="Health Check", content=content, size_hint=(0.7, 0.4))
+        popup.open()
+
+    def _process_health_answers(self):
+        # Example: search for diagnosis and meds
+        diagnosis = self.health_answers.get("diagnosis", "")
+        meds = self.health_answers.get("meds", "")
+        recommendations = self._get_recommendations(diagnosis, meds)
+        self._show_health_summary(recommendations)
+
+    def _get_recommendations(self, diagnosis, meds):
+        # This is a stub. In production, use a real API or curated info.
+        recs = []
+        if "pressure" in diagnosis.lower():
+            recs.append("For high blood pressure: Take your medication as prescribed, meditate, and stay active.")
+        if "insulin" in meds.lower():
+            recs.append("For insulin: Follow your doctor's instructions and monitor your blood sugar.")
+        # You could use requests to fetch info from a public health API here.
+        # For now, just return the recs.
+        return "\n".join(recs) or "No specific recommendations found."
+
+    def _show_health_summary(self, recommendations):
+        content = BoxLayout(orientation='vertical', spacing=10)
+        content.add_widget(Label(text="Health Recommendations:"))
+        content.add_widget(Label(text=recommendations))
+        close_btn = Button(text="Close")
+        content.add_widget(close_btn)
+        popup = Popup(title="Summary", content=content, size_hint=(0.7, 0.4))
+        close_btn.bind(on_release=popup.dismiss)
         popup.open()
 
     def check_out(self, instance):
