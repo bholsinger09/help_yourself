@@ -7,8 +7,11 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.app import App
 from kivy.graphics import Color, RoundedRectangle
 from kivy.uix.widget import Widget
+from kivy.core.window import Window
+from kivy.uix.scrollview import ScrollView
 import warnings
 import requests  # Add this import at the top
+import openai
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
 class RoundedButton(Button):
@@ -176,30 +179,123 @@ class HelpYourselfApp(App):
         popup.open()
 
     def _process_health_answers(self):
-        # Example: search for diagnosis and meds
+        feeling = self.health_answers.get("how_feeling", "").strip()
         diagnosis = self.health_answers.get("diagnosis", "")
         meds = self.health_answers.get("meds", "")
-        recommendations = self._get_recommendations(diagnosis, meds)
+
+        # Always search for the feeling with "solutions"
+        recommendations = self._get_recommendations(feeling, diagnosis, meds)
         self._show_health_summary(recommendations)
 
-    def _get_recommendations(self, diagnosis, meds):
-        # This is a stub. In production, use a real API or curated info.
-        recs = []
-        if "pressure" in diagnosis.lower():
-            recs.append("For high blood pressure: Take your medication as prescribed, meditate, and stay active.")
-        if "insulin" in meds.lower():
-            recs.append("For insulin: Follow your doctor's instructions and monitor your blood sugar.")
-        # You could use requests to fetch info from a public health API here.
-        # For now, just return the recs.
-        return "\n".join(recs) or "No specific recommendations found."
+    def _get_recommendations(self, feeling, diagnosis, meds):
+        prompt = (
+            f"A user reports: '{feeling}'. "
+            f"Diagnosis: '{diagnosis}'. "
+            f"Medications: '{meds}'. "
+            "Give a brief, safe, general self-care recommendation. "
+            "If it's serious, advise to consult a healthcare professional."
+        )
+        try:
+            client = openai.OpenAI()  # New: create a client instance
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.5,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            return f"Could not fetch AI recommendations: {e}"
 
     def _show_health_summary(self, recommendations):
-        content = BoxLayout(orientation='vertical', spacing=10)
-        content.add_widget(Label(text="Health Recommendations:"))
-        content.add_widget(Label(text=recommendations))
-        close_btn = Button(text="Close")
-        content.add_widget(close_btn)
-        popup = Popup(title="Summary", content=content, size_hint=(0.7, 0.4))
+        from kivy.uix.label import Label
+        from kivy.uix.button import Button
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.scrollview import ScrollView
+        from kivy.core.window import Window
+        from kivy.clock import Clock
+
+        popup_width = int(Window.width * 0.6)
+        max_popup_height = int(Window.height * 0.8)
+        button_width = int(popup_width * 0.5)
+        button_height = 40
+        vertical_spacing = 10
+        horizontal_padding = 40  # <-- Increased for more right/left space
+
+        # Label for recommendations
+        rec_label = Label(
+            text="[b]Health Recommendations:[/b]\n\n" + recommendations,
+            markup=True,
+            halign="left",
+            valign="top",
+            size_hint_x=None,
+            size_hint_y=None,
+            text_size=(popup_width - 2 * horizontal_padding, None),
+            width=popup_width - 2 * horizontal_padding,
+        )
+
+        def update_label_height(instance, value):
+            rec_label.height = rec_label.texture_size[1]
+
+        rec_label.bind(texture_size=update_label_height)
+
+        scroll = ScrollView(
+            size_hint=(None, None),
+            size=(popup_width - 2 * horizontal_padding, 100),  # Initial guess, will be updated
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=10,
+        )
+        scroll.add_widget(rec_label)
+
+        # Center the close button in a horizontal BoxLayout
+        button_box = BoxLayout(
+            orientation='horizontal',
+            size_hint_y=None,
+            height=button_height,
+            padding=[0, 10, 0, 0]
+        )
+        button_box.add_widget(Widget(size_hint_x=0.5))
+        close_btn = Button(
+            text="Close",
+            size_hint=(None, None),
+            width=button_width,
+            height=button_height,
+        )
+        button_box.add_widget(close_btn)
+        button_box.add_widget(Widget(size_hint_x=0.5))
+
+        content = BoxLayout(
+            orientation='vertical',
+            spacing=vertical_spacing,
+            padding=[horizontal_padding, vertical_spacing, horizontal_padding, vertical_spacing],
+            size_hint=(None, None),
+            width=popup_width,
+        )
+        content.add_widget(scroll)
+        content.add_widget(button_box)
+
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(None, None),
+            size=(popup_width, 200),  # Initial guess, will be updated
+            auto_dismiss=True,
+            separator_height=0,  # <-- Hide the blue separator bar
+            separator_color=(0, 0, 0, 0),  # <-- Make separator transparent (extra safety)
+        )
+
+        def adjust_popup(*args):
+            total_content_height = rec_label.height + button_height + 3 * vertical_spacing
+            popup.height = min(total_content_height, max_popup_height)
+            scroll.height = popup.height - button_height - 2 * vertical_spacing
+            # Ensure label and scroll widths match
+            rec_label.text_size = (popup_width - 2 * horizontal_padding, None)
+            rec_label.width = popup_width - 2 * horizontal_padding
+            scroll.width = popup_width - 2 * horizontal_padding
+
+        Clock.schedule_once(adjust_popup, 0.1)
+
         close_btn.bind(on_release=popup.dismiss)
         popup.open()
 
